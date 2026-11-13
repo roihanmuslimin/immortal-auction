@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "completed": [
+    "A1"
+  ],
+  "imports": [
+    {
+      "taskId": "A1",
+      "title": "Scaffold, lint, CI skeleton, import workflow",
+      "zipSha256": "860b0ad1768ddb4f0d03ee9ad84a0e4413b1ee34c6cc0c9057534005f0ef4641"
+    }
+  ]
+}
