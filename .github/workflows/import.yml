@@ -1,0 +1,110 @@
+name: Import task package
+
+# Manual only. Upload a task ZIP to imports/ on the main branch, then run this workflow.
+# The ZIP is validated first (read-only job). Only if it passes does a second job apply it,
+# run lint and tests, and open a pull request. Nothing is committed to main directly.
+
+on:
+  workflow_dispatch:
+    inputs:
+      zip_path:
+        description: 'Path of the task ZIP in this repository, for example imports/taskA1.zip'
+        required: true
+        type: string
+      bootstrap:
+        description: 'First import only (task A1 on an empty repository): validate with the tooling inside the ZIP'
+        required: false
+        type: boolean
+        default: false
+
+permissions: {}
+
+concurrency:
+  group: import-task
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate package (read-only)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate
+        env:
+          ZIP_PATH: ${{ inputs.zip_path }}
+          BOOTSTRAP: ${{ inputs.bootstrap }}
+        run: |
+          set -eu
+          printf '%s' "$ZIP_PATH" | grep -Eq '^imports/[A-Za-z0-9._-]+\.zip$' || { echo "zip_path must look like imports/<name>.zip"; exit 1; }
+          test -f "$ZIP_PATH" || { echo "file not found: $ZIP_PATH"; exit 1; }
+          if [ "$BOOTSTRAP" = "true" ]; then
+            test ! -f tasks/state.json || { echo "bootstrap is only allowed on an empty repository"; exit 1; }
+            mkdir -p "$RUNNER_TEMP/boot"
+            unzip -q -o "$ZIP_PATH" 'tools/import/*' -d "$RUNNER_TEMP/boot"
+            node "$RUNNER_TEMP/boot/tools/import/apply-import.mjs" --validate-only --bootstrap --zip "$ZIP_PATH" --repo . --summary "$RUNNER_TEMP/plan.md"
+          else
+            node tools/import/apply-import.mjs --validate-only --zip "$ZIP_PATH" --repo . --summary "$RUNNER_TEMP/plan.md"
+          fi
+      - name: Publish the plan
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/plan.md" ]; then cat "$RUNNER_TEMP/plan.md" >> "$GITHUB_STEP_SUMMARY"; fi
+
+  apply:
+    name: Apply package and open a pull request
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply
+        id: apply
+        env:
+          ZIP_PATH: ${{ inputs.zip_path }}
+          BOOTSTRAP: ${{ inputs.bootstrap }}
+        run: |
+          set -eu
+          printf '%s' "$ZIP_PATH" | grep -Eq '^imports/[A-Za-z0-9._-]+\.zip$'
+          if [ "$BOOTSTRAP" = "true" ]; then
+            mkdir -p "$RUNNER_TEMP/boot"
+            unzip -q -o "$ZIP_PATH" 'tools/import/*' -d "$RUNNER_TEMP/boot"
+            node "$RUNNER_TEMP/boot/tools/import/apply-import.mjs" --bootstrap --zip "$ZIP_PATH" --repo . --summary "$RUNNER_TEMP/summary.md" --github-output "$GITHUB_OUTPUT"
+          else
+            node tools/import/apply-import.mjs --zip "$ZIP_PATH" --repo . --summary "$RUNNER_TEMP/summary.md" --github-output "$GITHUB_OUTPUT"
+          fi
+          cat "$RUNNER_TEMP/summary.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Lint and test the result
+        run: |
+          node tools/lint/run.mjs
+          node --test "tests/**/*.test.mjs"
+      - name: Open pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TASK_ID: ${{ steps.apply.outputs.task_id }}
+          TASK_TITLE: ${{ steps.apply.outputs.title }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -eu
+          BRANCH="import/${TASK_ID}-${RUN_ID}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add -A
+          git commit -m "Import task ${TASK_ID}: ${TASK_TITLE}"
+          git push origin "$BRANCH"
+          gh pr create --base "$DEFAULT_BRANCH" --head "$BRANCH" --title "Import task ${TASK_ID}: ${TASK_TITLE}" --body-file "$RUNNER_TEMP/summary.md"
