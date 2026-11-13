@@ -1,0 +1,19 @@
+{
+  "name": "immortal-auction",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Immortal Auction: Liquid Ink. Stage A foundation (Living Ledger core).",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "lint": "node tools/lint/run.mjs",
+    "test": "node --test \"tests/**/*.test.mjs\"",
+    "build": "node tools/build.mjs",
+    "check": "node tools/lint/run.mjs && node --test \"tests/**/*.test.mjs\""
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

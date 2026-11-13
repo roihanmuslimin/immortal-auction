@@ -1,0 +1,47 @@
+{
+  "maxArchiveBytes": 20971520,
+  "maxExpandedBytes": 52428800,
+  "maxFiles": 2000,
+  "maxFileBytes": 5242880,
+  "maxCompressionRatio": 100,
+  "allowedExtensions": [
+    ".js",
+    ".mjs",
+    ".json",
+    ".md",
+    ".yml",
+    ".txt",
+    ".html",
+    ".css"
+  ],
+  "globalAllowedPrefixes": [
+    "src/",
+    "tests/",
+    "tools/",
+    "docs/"
+  ],
+  "globalAllowedFiles": [
+    "package.json",
+    "README.md",
+    ".gitignore",
+    ".github/workflows/ci.yml",
+    ".github/workflows/import.yml"
+  ],
+  "protectedFiles": [
+    ".github/workflows/import.yml",
+    "tasks/state.json"
+  ],
+  "protectedPrefixes": [
+    "tools/import/"
+  ],
+  "forbiddenLifecycleScripts": [
+    "preinstall",
+    "install",
+    "postinstall",
+    "prepublish",
+    "prepublishOnly",
+    "prepare",
+    "prepack",
+    "postpack"
+  ]
+}
